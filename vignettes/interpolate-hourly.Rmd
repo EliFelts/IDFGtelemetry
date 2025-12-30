@@ -22,7 +22,7 @@ The IDFG telemetry package itself isn't on CRAN so it needs to be loaded from th
 ```{r, eval=FALSE}
 
 install.packages("remotes")
-remotes::install_github("EliFelts/IDFGtelemetry")
+remotes::install_github("EliFelts/IDFGtelemetry", force=TRUE)
 
 ```
 
