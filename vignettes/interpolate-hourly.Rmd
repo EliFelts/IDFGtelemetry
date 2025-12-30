@@ -1,0 +1,39 @@
+---
+title: "Interpolating hourly fish locations"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Interpolating hourly fish locations}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# Overview
+
+
+The IDFG telemetry package itself isn't on CRAN so it needs to be loaded from the GitHub remote using the following code:
+
+```{r, eval=FALSE}
+
+install.packages("remotes")
+remotes::install_github("EliFelts/IDFGtelemetry")
+
+```
+
+Now load the packages we'll need. 
+
+```{r setup, eval=FALSE, message=FALSE}
+
+library(IDFGtelemetry)
+library(tidyverse)
+library(arrow)
+
+
+```
+
