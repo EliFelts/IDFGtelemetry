@@ -16,6 +16,17 @@ knitr::opts_chunk$set(
 
 # Overview
 
+The function `interpolate_hourly()` is used to construct best estimates of hourly locations for individual fish based on detection histories. The location for each hour during which an individual fish was actually detected is summarized - if an individual was detected at multiple locations during an hour this will give the first detection in that hour. The next actual detection is also logged, then the data table is expanded to include each hour from the first actual detection to the latest for each individual. If sequential actual detections are at the same location then intervening hours assume that individual remained at that location. If sequential actual detections are at different locations then intervening hours assume that individuals moved at a constant rate between those locations over the span of time between actual detections. These locations are snapped to the nearest 0.1 km points assuming the fish moved in the straightest possible path while remaining in the water.
+
+## Assumptions
+
+The purpose of constructing these estimated paths is to visualize broad movement patterns over relatively long periods of time, not to portray strictly accurate representations of fish location at any given time. Bearing that in mind, it's worth noting key assumptions made in this interpolation process, which include:
+
+-   Fish remain at a fixed location when sequential detections are at the same deployment location
+
+-   Fish moved in the most efficient path possible at a constant rate when moving between deployment locations.
+
+# Example Code
 
 The IDFG telemetry package itself isn't on CRAN so it needs to be loaded from the GitHub remote using the following code:
 
@@ -26,7 +37,7 @@ remotes::install_github("EliFelts/IDFGtelemetry", force=TRUE)
 
 ```
 
-Now load the packages we'll need. 
+Now load the packages we'll need.
 
 ```{r setup, eval=FALSE, message=FALSE}
 
@@ -34,6 +45,6 @@ library(IDFGtelemetry)
 library(tidyverse)
 library(arrow)
 
-
 ```
 
+The `IDFGtelemetry` package includes an example data set that includes detections of 5 Walleye which moved a substantial amount for the entire calendar year 2024.
