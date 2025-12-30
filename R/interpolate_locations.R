@@ -12,7 +12,7 @@
 #' @returns a data frame with observed or interpolated locations of individual fish
 #' @export
 #'
-interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments) {
+interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
   dat1 <- detections %>%
     dplyr::filter(
       .data$fish_id %in% !!fish_id,
