@@ -26,9 +26,13 @@ The purpose of constructing these estimated paths is to visualize broad movement
 
 -   Fish moved in the most efficient path possible at a constant rate when moving between deployment locations.
 
+Generally speaking, the longer the interval is between actual detections the more uncertainty there is in these representations.
+
 # Example Code
 
-The IDFG telemetry package itself isn't on CRAN so it needs to be loaded from the GitHub remote using the following code:
+## Load Packages
+
+The `IDFGtelemetry` package itself isn't on CRAN so it needs to be loaded from the GitHub remote using the following code:
 
 ```{r, eval=FALSE}
 
@@ -47,4 +51,43 @@ library(arrow)
 
 ```
 
-The `IDFGtelemetry` package includes an example data set that includes detections of 5 Walleye which moved a substantial amount for the entire calendar year 2024.
+## Individual Fish
+
+The `IDFGtelemetry` package includes an example data set, `detections_example` that includes detections of 5 Walleye which moved a substantial amount for the entire calendar year 2024.
+
+First, subset an individual fish and run the function to interpolate locations for that individual. Get id for individuals:
+
+```{r}
+
+unique(detections_example$fish_id)
+
+```
+
+Just grab the first one and subset detections of that indiviual. Note that a data frame of current deployments and the associated network of pairwise connections between those deployments, represented by points at 0.1 km intervals, are loaded with the package as well.
+
+```{r}
+
+ind_example <- interpolate_hourly(detections = detections_example,
+                                  fish_id = "1327672_2019-11-06_WAE")
+
+```
+
+## Groups of fish
+
+Often, the goal will be to create this type of data for multiple fish. To do so, iterate through multiple `fish_id` on the `interpolate_hourly()` function. Here, that is carried out on all 5 individuals in the example data set.
+
+```{r}
+
+unique_fish <- unique(detections_example$fish_id)
+
+
+iterate_example <- map_dfr(
+  unique_fish, ~ interpolate_hourly(
+    detections = detections_example,
+    fish_id = .x
+  )
+)
+
+```
+
+The majority of the time, iterating over a group will be the best approach unless you know beforehand you want to examine a specific individual. With this hourly data set for each individual in a group, it is straightforward to iterate on the `fish_animations()` function to build animations for each fish in the group.
