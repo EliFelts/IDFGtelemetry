@@ -29,9 +29,9 @@ fish_animation <- function(hourly_detections, duration = 60,
   outfile <- file.path(out_dir, paste0(filename, ".", "webm"))
 
   static_map <- hourly_detections %>%
-    ggplot() +
-    geom_sf(data = waterbody_shape) +
-    geom_point(
+    ggplot2::ggplot() +
+    ggplot2::geom_sf(data = waterbody_shape) +
+    ggplot2::geom_point(
       aes(
         x = det_long, y = det_lat,
         fill = fish_id
@@ -40,8 +40,8 @@ fish_animation <- function(hourly_detections, duration = 60,
       size = 4,
       show.legend = FALSE
     ) +
-    theme_void() +
-    theme(plot.title = element_text(
+    ggplot2::theme_void() +
+    ggplot2::theme(plot.title = element_text(
       color = "red",
       size = 28,
       face = "bold",
@@ -54,7 +54,7 @@ fish_animation <- function(hourly_detections, duration = 60,
 
 
   animation <- static_map +
-    transition_time(time = detection_hour) +
+    gganimate::transition_time(time = detection_hour) +
     labs(title = 'Date: {format(frame_time,format= "%B %d %Y")}') +
     shadow_wake(wake_length = wake_prop)
 
