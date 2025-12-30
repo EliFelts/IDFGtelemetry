@@ -4,7 +4,12 @@
 \alias{interpolate_hourly}
 \title{Interpolate hourly detections of individual fish based on observations}
 \usage{
-interpolate_hourly(detections, fish_id, paths = network_points, deployments)
+interpolate_hourly(
+  detections,
+  fish_id,
+  paths = network_points,
+  deployments = deployments_current
+)
 }
 \arguments{
 \item{detections}{Data frame of detections at passive receiver deployments;
