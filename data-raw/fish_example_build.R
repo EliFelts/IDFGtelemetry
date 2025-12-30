@@ -18,4 +18,4 @@ detection.sum <- detections_example %>%
 detections.export <- detections_example %>%
   filter(fish_id %in% detection.sum$fish_id)
 
-use_data(detections_example, overwrite = TRUE)
+use_data(detections.export, overwrite = TRUE)
