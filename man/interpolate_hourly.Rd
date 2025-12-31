@@ -33,8 +33,3 @@ fields indicating observed vs interpolated, and associated receiver/location nam
 Given a data frame of detections, interpolates fish positions at each hour,
 using spatial paths between static receiver deployment locations.
 }
-\examples{
-data("detections_example", package = "IDFGtelemetry")
-out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
-head(out)
-}
