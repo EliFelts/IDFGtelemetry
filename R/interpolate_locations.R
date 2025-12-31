@@ -1,18 +1,27 @@
 #' Interpolate hourly detections of individual fish based on observations
 #'
-#' @param detections Data frame of detections at passive receiver deployments;
-#' Each row represents a ping and has an associated fish_id, location_name,
-#' and time stamp (e.g. `"2018-10-10 05:13:29"`)
-#' @param fish_id Character vector of unique fish identifiers.
-#' Each identifier is a composite key combining transmitter serial number,
-#' release date, and a three-letter species code (e.g. `"1302740_2018-10-10_LKT"`)
+#' Given a data frame of detections, interpolates fish positions at each hour,
+#' using spatial paths between static receiver deployment locations.
+#'
+#' @param detections Data frame with columns: fish_id (character), detection_datetime (POSIXct),
+#'   latitude (numeric), longitude (numeric), location_name (character).
+#' @param fish_id Character scalar of vector; unique fish identifier(s), e.g. `"1302740_2018-10-10_LKT"`
 #' @param paths Data frame of points (lat/long in WGS 84) between pairwise
-#' combinations of receiver deployments
-#' @param deployments Data frame of points (lat/long in WGS 84) for receiver deployments
-#' @returns a data frame with observed or interpolated locations of individual fish
+#' combinations of receiver deployments; defaults to network_points which loads
+#' the most recent version in the IDFGtelemetry package
+#' @param deployments Data frame of points (lat/long in WGS 84) for receiver deployments;
+#' default is deployments_current which loads the most recent version in the
+#' IDFGtelemetry package
+#' @return Tibble with hourly positions ('det_lat','det_long') for each fish_id, with
+#'  fields indicating observed vs interpolated, and associated receiver/location name
 #' @export
 #'
 interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
+  if (!requireNamespace("dplyr", quietly = TRUE)) stop("dplyr needed for this function.")
+  required_det_cols <- c("fish_id", "latitude", "longitude", "detection_datetime", "location_name")
+  missing_cols <- setdiff(required_det_cols, colnames(detections))
+  if (length(missing_cols) > 0) stop("detections is missing columns: ", paste(missing_cols, collapse = ", "))
+
   dat1 <- detections %>%
     dplyr::filter(
       .data$fish_id %in% !!fish_id,
