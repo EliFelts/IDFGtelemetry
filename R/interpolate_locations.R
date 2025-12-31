@@ -16,10 +16,6 @@
 #'  fields indicating observed vs interpolated, and associated receiver/location name
 #' @importFrom rlang .data .env
 #' @export
-#' @examples
-#' data("detections_example", package = "IDFGtelemetry")
-#' out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
-#' head(out)
 interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
   if (!requireNamespace("dplyr", quietly = TRUE)) stop("dplyr needed for this function.")
   required_det_cols <- c("fish_id", "latitude", "longitude", "detection_datetime", "location_name")
