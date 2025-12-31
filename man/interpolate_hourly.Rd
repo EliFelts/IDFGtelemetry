@@ -12,22 +12,29 @@ interpolate_hourly(
 )
 }
 \arguments{
-\item{detections}{Data frame of detections at passive receiver deployments;
-Each row represents a ping and has an associated fish_id, location_name,
-and time stamp (e.g. \code{"2018-10-10 05:13:29"})}
+\item{detections}{Data frame with columns: fish_id (character), detection_datetime (POSIXct),
+latitude (numeric), longitude (numeric), location_name (character).}
 
-\item{fish_id}{Character vector of unique fish identifiers.
-Each identifier is a composite key combining transmitter serial number,
-release date, and a three-letter species code (e.g. \code{"1302740_2018-10-10_LKT"})}
+\item{fish_id}{Character scalar of vector; unique fish identifier(s), e.g. \code{"1302740_2018-10-10_LKT"}}
 
 \item{paths}{Data frame of points (lat/long in WGS 84) between pairwise
-combinations of receiver deployments}
+combinations of receiver deployments; defaults to network_points which loads
+the most recent version in the IDFGtelemetry package}
 
-\item{deployments}{Data frame of points (lat/long in WGS 84) for receiver deployments}
+\item{deployments}{Data frame of points (lat/long in WGS 84) for receiver deployments;
+default is deployments_current which loads the most recent version in the
+IDFGtelemetry package}
 }
 \value{
-a data frame with observed or interpolated locations of individual fish
+Tibble with hourly positions ('det_lat','det_long') for each fish_id, with
+fields indicating observed vs interpolated, and associated receiver/location name
 }
 \description{
-Interpolate hourly detections of individual fish based on observations
+Given a data frame of detections, interpolates fish positions at each hour,
+using spatial paths between static receiver deployment locations.
+}
+\examples{
+data(detection_examples)
+out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
+head(out)
 }
