@@ -78,7 +78,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     tidyr::fill(next_detection_hr, .direction = "down") |>
     dplyr::group_by(interval_id) |>
     dplyr::mutate(
-      group_count = n(),
+      group_count = dplyr::n(),
       group_start_hour = dplyr::first(detection_hour),
       rowname = dplyr::row_number(),
       advance_rate = transition_distance / group_count,
