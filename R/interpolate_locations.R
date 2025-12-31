@@ -24,12 +24,12 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
 
   dat1 <- detections |>
     dplyr::filter(
-      .data$fish_id %in% !!fish_id,
-      !is.na(latitude),
-      !is.na(location_name)
+      rlang::.data$fish_id %in% fish_id,
+      !is.na(rlang::.data$latitude),
+      !is.na(rlang::.datalocation_name)
     ) |>
-    dplyr::arrange(detection_datetime) |>
-    dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
+    dplyr::arrange(rlang::.data$detection_datetime) |>
+    dplyr::mutate(detection_hour = lubridate::round_date(rlang::.data$detection_datetime, unit = "hour"))
 
   ind_timeframe <- tibble::tibble(detection_hour = seq(min(dat1$detection_hour),
     max(dat1$detection_hour),
