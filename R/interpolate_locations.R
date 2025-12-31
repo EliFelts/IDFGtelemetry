@@ -52,7 +52,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
 
   path_attributes <- paths |>
     dplyr::group_by(name) |>
-    summarize(length = max(rkm))
+    dplyr::summarize(length = max(rkm))
 
   join1 <- ind_timeframe |>
     dplyr::left_join(pts1, by = "detection_hour") |>
