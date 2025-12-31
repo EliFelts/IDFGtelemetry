@@ -14,6 +14,7 @@
 #' IDFGtelemetry package
 #' @return Tibble with hourly positions ('det_lat','det_long') for each fish_id, with
 #'  fields indicating observed vs interpolated, and associated receiver/location name
+#' @importFrom rlang .data .env
 #' @export
 #' @examples
 #' data("detections_example", package = "IDFGtelemetry")
