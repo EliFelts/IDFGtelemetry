@@ -16,7 +16,7 @@
 #'  fields indicating observed vs interpolated, and associated receiver/location name
 #' @export
 #' @examples
-#' data(detection_examples)
+#' data("detections_example", package = "IDFGtelemetry")
 #' out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
 #' head(out)
 interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
@@ -130,4 +130,6 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     dplyr::select(-c(rowname, lon, lat)) |>
     dplyr::bind_rows(static) |>
     dplyr::mutate(fish_id = .env$fish_id)
+
+  hourly_bind
 }
