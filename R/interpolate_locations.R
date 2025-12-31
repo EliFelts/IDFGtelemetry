@@ -57,11 +57,11 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     ) %>%
     tidyr::fill(.data$transition_start, .direction = "down") %>%
     dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) %>%
-    left_join(path_attributes, by = c("transition_name" = "name"))
+    dplyr::left_join(path_attributes, by = c("transition_name" = "name"))
 
   transition <- join1 %>%
     dplyr::filter(transition_start == TRUE) %>%
-    mutate(
+    dplyr::mutate(
       interval_id = stringr::str_c(detection_hour, transition_name, sep = "_"),
       transition_distance = length
     ) %>%
