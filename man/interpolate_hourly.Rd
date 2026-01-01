@@ -12,12 +12,12 @@ interpolate_hourly(
 )
 }
 \arguments{
-\item{detections}{Data frame with columns: fish_id (character), detection_datetime (POSIXct),
+\item{detections}{Data frame; must have columns: fish_id (character), detection_datetime (POSIXct),
 latitude (numeric), longitude (numeric), location_name (character).}
 
-\item{fish_id}{Character scalar of vector; unique fish identifier(s), e.g. \code{"1302740_2018-10-10_LKT"}}
+\item{fish_id}{Character; unique fish identifier, e.g. \code{"1302740_2018-10-10_LKT"}}
 
-\item{paths}{Data frame of points (lat/long in WGS 84) between pairwise
+\item{paths}{Data frame; points between pairwise
 combinations of receiver deployments; defaults to network_points which loads
 the most recent version in the IDFGtelemetry package}
 
