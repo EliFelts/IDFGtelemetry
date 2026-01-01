@@ -55,10 +55,10 @@ fish_animation <- function(hourly_detections, duration = 60,
 
   animation <- static_map +
     gganimate::transition_time(time = detection_hour) +
-    labs(title = 'Date: {format(frame_time,format= "%B %d %Y")}') +
-    shadow_wake(wake_length = wake_prop)
+    ggplot2::labs(title = 'Date: {format(frame_time,format= "%B %d %Y")}') +
+    gganimate::shadow_wake(wake_length = wake_prop)
 
-  animate(animation,
+  gganimate::animate(animation,
     fps = fps, nframes = nframes,
     height = 6, width = 12, units = "in",
     res = 150,
