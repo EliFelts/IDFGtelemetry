@@ -36,6 +36,8 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     dplyr::arrange(.data$detection_datetime) |>
     dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
 
+  locs <- unique(dat1$location_name[!is.na(dat1$location_name)])
+
   ind_timeframe <- tibble::tibble(detection_hour = seq(min(dat1$detection_hour),
     max(dat1$detection_hour),
     by = "hours"
