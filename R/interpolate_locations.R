@@ -38,6 +38,52 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
 
   locs <- unique(dat1$location_name[!is.na(dat1$location_name)])
 
+  if (length(locs) <= 1) {
+    loc <- locs[[1]]
+
+    dep_row <- deployments |>
+      dplyr::filter(.data$location_name == .env$loc) |>
+      dplyr::slice(1)
+
+    if (nrow(dep_row) == 1) {
+      base_lat <- dep_row$latitude[[1]]
+      base_lon <- dep_row$longitude[[1]]
+    } else {
+      base_lat <- dplyr::first(dat1$latitude)
+      base_lon <- dplyr::first(dat1$longitude)
+    }
+
+    ind_timeframe <- tibble::tibble(
+      detection_hour = seq(min(dat1$detection_hour), max(dat1$detection_hour), by = "hours")
+    )
+
+    observed_by_hr <- dat1 |>
+      dplyr::group_by(.data$detection_hour) |>
+      dplyr::summarize(
+        det_lat = dplyr::first(.data$latitude),
+        det_long = dplyr::first(.data$longitude),
+        .groups = "drop"
+      )
+
+    out <- ind_timeframe |>
+      dplyr::left_join(observed_by_hr, by = "detection_hour") |>
+      dplyr::mutate(
+        join_name = stringr::str_c(.env$loc, .env$loc, sep = "_"),
+        point_type = ifelse(is.na(.data$det_lat), "interpolated", "observed"),
+        det_lat = dplyr::coalesce(.data$det_lat, base_lat),
+        det_long = dplyr::coalesce(.data$det_long, base_lon),
+        det_rkm = 0,
+        calculated_rkm = 0,
+        fish_id = .env$fish_id
+      ) |>
+      dplyr::select(
+        detection_hour, join_name, det_lat, det_long,
+        det_rkm, point_type, calculated_rkm, fish_id
+      )
+
+    return(out)
+  }
+
   ind_timeframe <- tibble::tibble(detection_hour = seq(min(dat1$detection_hour),
     max(dat1$detection_hour),
     by = "hours"
@@ -74,6 +120,17 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     tidyr::fill(.data$transition_start, .direction = "down") |>
     dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) |>
     dplyr::left_join(path_attributes, by = c("transition_name" = "name"))
+
+  missing_paths <- join1 |>
+    dplyr::filter(.data$transition_start, is.na(.data$length)) |>
+    dplyr::distinct(.data$transition_name)
+
+  if (nrow(missing_paths) > 0) {
+    rlang::abort(paste0(
+      "Missing path(s) in `paths` for transition(s): ",
+      paste(missing_paths$transition_name, collapse = ", ")
+    ))
+  }
 
   transition <- join1 |>
     dplyr::filter(transition_start == TRUE) |>
