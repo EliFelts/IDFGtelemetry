@@ -19,6 +19,7 @@ library(leaflet)
 library(leafem)
 library(here)
 library(arrow)
+library(rnaturalearth)
 library(lwgeom)
 
 # declare conflict preferences
@@ -59,16 +60,57 @@ deployments_current <- read_feather("data-raw/deployments")
 
 crs_project <- "EPSG:32611"
 
-# set the resolution (in meters) that will
-# be applied to the raster
+# grab polygon of Idaho to filter
+# clark for within the state
 
-res_m <- 25
+id.sf <- ne_states(returnclass = "sf") |>
+  filter(name == "Idaho")
 
 lpo.sf_map <- st_read(
   dsn = "data-raw/idfg_habitat_mapping.gpkg",
   layer = "lakes"
 ) %>%
   filter(name == "Lake Pend Oreille")
+
+
+rivers.sf <- st_read(
+  dsn = "data-raw/idfg_habitat_mapping.gpkg",
+  layer = "streams"
+) |>
+  filter(name %in% c(
+    "Clark Fork",
+    "Lightning Creek",
+    "Pack River"
+  )) |>
+  st_intersection(id.sf)
+
+
+rivers_buffer.sf <- st_buffer(rivers.sf, dist = 50)
+
+water_corridor <- c(st_geometry(lpo.sf_map), st_geometry(rivers_buffer.sf)) |>
+  st_union() |>
+  st_as_sf()
+
+deploy_map1 <- deployments_current %>%
+  filter(
+    !is.na(latitude),
+    !is.na(longitude),
+    !is.na(location_name)
+  ) %>%
+  st_as_sf(
+    coords = c("longitude", "latitude"),
+    crs = 4326
+  )
+
+leaflet_base |>
+  addPolygons(data = water_corridor)
+
+
+
+
+
+
+##############
 
 lakes.sf <- st_read(
   dsn = "data-raw/idfg_habitat_mapping.gpkg",
