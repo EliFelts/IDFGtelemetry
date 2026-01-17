@@ -178,7 +178,7 @@ p1 <- deployments.example_snapped |>
   filter(location_name == "Farragut Breakwater")
 
 p2 <- deployments.example_snapped |>
-  filter(location_name == "CF River near RR Bridge")
+  filter(location_name == "Lightning Creek")
 
 
 
@@ -198,7 +198,7 @@ leaflet_base |>
 
 # Make a raster grid over the lake extent
 
-res_m <- 50
+res_m <- 25
 
 r_template <- rast(ext(vect(water_surface_main)),
   resolution = res_m,
@@ -240,6 +240,7 @@ plot(lake_r, colNA = "white")
 plot(vect(water_surface_main), add = TRUE, border = "blue", lwd = 2)
 points(start_xy[1], start_xy[2], pch = 16)
 points(end_xy[1], end_xy[2], pch = 16)
+
 
 
 
