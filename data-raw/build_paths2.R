@@ -54,24 +54,6 @@ receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
 
 target_crs <- 32611
 
-# convert receiver points to target CRS
-
-deployments.example <- receiver.dat |>
-  st_as_sf(
-    coords = c("longitude", "latitude"),
-    crs = 4326
-  ) |>
-  st_transform(target_crs)
-
-# pull out one simple pair to work
-# out an example, McDonald's Dock to
-# Farragut Breakwater
-
-p1 <- deployments.example |>
-  filter(location_name == "Pack Delta Buoys")
-
-p2 <- deployments.example |>
-  filter(location_name == "Farragut Breakwater")
 
 # bring in lake polygon and also
 # convert to the same CRS
@@ -104,8 +86,8 @@ streams <- st_read(
 
 # union the lake with a very small buffer of streams to force contact
 
-buf_m <- 30
-snap_buf_m <- 5
+buf_m <- 80
+snap_buf_m <- 20
 
 lake_bridged <- st_union(lake, st_buffer(streams, snap_buf_m))
 lake_bridged <- st_make_valid(lake_bridged)
@@ -123,11 +105,82 @@ idx <- st_within(lake_center, parts, sparse = TRUE)[[1]]
 
 water_surface_main <- st_as_sf(parts[idx])
 
+water_surface_main <- water_surface_main |>
+  st_union() |>
+  st_as_sf()
+
+
 clean_m <- 2
 water_surface_main <- water_surface_main |>
   st_buffer(clean_m) |>
   st_buffer(-clean_m) |>
   st_make_valid()
+
+# now bring in deployment points and
+# make sure they're in the same projection as
+# the water surface and also
+# that they fall within that layer
+
+# convert receiver points to target CRS
+
+target_crs2 <- st_crs(water_surface_main)
+
+deployments.example <- receiver.dat |>
+  st_as_sf(
+    coords = c("longitude", "latitude"),
+    crs = 4326
+  ) |>
+  st_transform(target_crs2) |>
+  st_make_valid()
+
+# find which points are inside vs. outside the current water surface
+# boundaries
+
+inside <- st_within(deployments.example, water_surface_main, sparse = F)[, 1]
+table(inside)
+
+deployments.example_in <- deployments.example[inside, ]
+
+deployments.example_out <- deployments.example[!inside, ]
+
+# For each outside point, get a LINESTRING to nearest point on polygon
+
+nearest_lines <- st_nearest_points(deployments.example_out, water_surface_main)
+
+# Extract the second coordinate (the point on the polygon)
+snap_coords <- lapply(nearest_lines, function(g) {
+  xy <- st_coordinates(g)
+  xy[nrow(xy), 1:2, drop = FALSE] # last vertex is on polygon
+})
+snap_coords <- do.call(rbind, snap_coords)
+
+deployments.example_out_snapped <- deployments.example_out
+st_geometry(deployments.example_out_snapped) <- st_sfc(lapply(seq_len(nrow(snap_coords)), function(i) {
+  st_point(snap_coords[i, ])
+}), crs = st_crs(deployments.example_out))
+
+deployments.example_snapped <- deployments.example_out_snapped |>
+  bind_rows(deployments.example_in)
+
+
+leaflet_base |>
+  addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
+  addCircleMarkers(
+    data = st_transform(deployments.example_out_snapped, crs = 4326),
+    label = ~ str_c(location_name)
+  )
+
+# pull out one simple pair to work
+# out an example, McDonald's Dock to
+# Farragut Breakwater
+
+p1 <- deployments.example_snapped |>
+  filter(location_name == "Farragut Breakwater")
+
+p2 <- deployments.example_snapped |>
+  filter(location_name == "CF River near RR Bridge")
+
+
 
 
 
@@ -145,7 +198,7 @@ leaflet_base |>
 
 # Make a raster grid over the lake extent
 
-res_m <- 100
+res_m <- 50
 
 r_template <- rast(ext(vect(water_surface_main)),
   resolution = res_m,
@@ -172,6 +225,7 @@ xy2 <- st_coordinates(p2)
 cell1 <- cellFromXY(lake_r, xy1)
 cell2 <- cellFromXY(lake_r, xy2)
 
+
 if (is.na(cell1) || is.na(cell2)) {
   stop("One of the points is not on a valid (inside-lake) cell at this raster resolution.")
 }
@@ -179,6 +233,15 @@ if (is.na(cell1) || is.na(cell2)) {
 # gdistance wants coordinates; safest is to use the cell centers you snapped to:
 start_xy <- xyFromCell(lake_r, cell1)
 end_xy <- xyFromCell(lake_r, cell2)
+
+### check to diagnose CF stuff
+
+plot(lake_r, colNA = "white")
+plot(vect(water_surface_main), add = TRUE, border = "blue", lwd = 2)
+points(start_xy[1], start_xy[2], pch = 16)
+points(end_xy[1], end_xy[2], pch = 16)
+
+
 
 # ---- 5) shortest path constrained to lake cells ----
 sp <- shortestPath(tr,
@@ -225,7 +288,7 @@ plot(st_geometry(p1), add = TRUE, pch = 16)
 plot(st_geometry(p2), add = TRUE, pch = 16)
 
 leaflet_base |>
-  addPolygons(data = st_transform(water_surface, crs = 4326)) |>
+  addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
   addCircleMarkers(
     data = st_transform(p1, 4326)
   ) |>
