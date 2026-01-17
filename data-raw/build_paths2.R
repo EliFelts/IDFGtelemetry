@@ -29,9 +29,9 @@ leaflet_base <- leaflet() %>%
   setView(lng = -116.53906, lat = 48.1, zoom = 10) %>%
   addMouseCoordinates()
 
-# starting out with just lpo_lake receivers bc the
-# lines will be constructed a little bit differently
-# for movement between those receivers
+# Read in current deployment data, filter for LPO system
+# and drop any that don't have coordinates
+
 
 receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
   filter(
@@ -47,13 +47,10 @@ receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
   ) |>
   distinct()
 
-# work out an example first
-
 # set meter-base CRS to put all pieces
 # into for raster process
 
 target_crs <- 32611
-
 
 # bring in lake polygon and also
 # convert to the same CRS
@@ -116,12 +113,9 @@ water_surface_main <- water_surface_main |>
   st_buffer(-clean_m) |>
   st_make_valid()
 
-# now bring in deployment points and
-# make sure they're in the same projection as
-# the water surface and also
-# that they fall within that layer
-
-# convert receiver points to target CRS
+# convert receiver points to target CRS,
+# and work through process of making sure
+# all are within the water surface raster layer
 
 target_crs2 <- st_crs(water_surface_main)
 
@@ -163,12 +157,120 @@ deployments.example_snapped <- deployments.example_out_snapped |>
   bind_rows(deployments.example_in)
 
 
+# Build the lake cost-distance raster
+
+# Make a raster grid over the lake extent
+
+res_m <- 25
+
+r_template <- rast(ext(vect(water_surface_main)),
+  resolution = res_m,
+  crs = paste0("EPSG:", target_crs)
+)
+
+# rasterize: inside lake = 1, outside = NA
+
+lake_r <- rasterize(vect(water_surface_main), r_template, field = 1, background = NA)
+
+# ---- 3) cost surface + transition graph ----
+# We want movement allowed only through non-NA cells.
+# transitionFunction below creates a conductance graph (higher = easier).
+
+tr <- transition(raster::raster(lake_r), transitionFunction = function(x) 1, directions = 8)
+tr <- geoCorrection(tr, type = "c", scl = FALSE)
+
+# now define a function that will use the inputs of the
+# points that are within the raster, the lake raster,
+# and the transition surface to build the network of
+# least cost paths between deployment locations
+
+
+build_paths <- function(start, end,
+                        snapped_deployments = deployments.example_snapped,
+                        lake_raster = lake_r,
+                        transition_layer = tr) {
+  p1 <- snapped_deployments |>
+    dplyr::filter(location_name == start)
+
+  p2 <- snapped_deployments |>
+    dplyr::filter(location_name == end)
+
+  xy1 <- sf::st_coordinates(p1)
+  xy2 <- sf::st_coordinates(p2)
+
+  cell1 <- terra::cellFromXY(lake_raster, xy1)
+  cell2 <- terra::cellFromXY(lake_raster, xy2)
+
+  if (is.na(cell1) || is.na(cell2)) {
+    stop("One of the points is not on a valid (inside-lake) cell at this raster resolution.")
+  }
+
+  start_xy <- terra::xyFromCell(lake_raster, cell1)
+  end_xy <- terra::xyFromCell(lake_raster, cell2)
+
+  sp <- gdistance::shortestPath(transition_layer,
+    origin = start_xy,
+    goal = end_xy,
+    output = "SpatialLines"
+  )
+
+  path_sf <- sf::st_as_sf(sp)
+
+  spacing_m <- 100
+
+  len <- as.numeric(sf::st_length(path_sf))
+
+  d <- seq(0, len, by = spacing_m)
+
+  if (tail(d, 1) < len) d <- c(d, len) # ensure endpoint included
+
+  sfc_line <- sf::st_geometry(path_sf)[[1]]
+  pts_sfc <- sf::st_line_sample(sfc_line, sample = d / len, type = "regular")
+
+  path_pts_sf <- sf::st_as_sf(pts_sfc) |>
+    sf::st_cast("POINT")
+  path_pts_sf$dist_m <- d
+
+  sf::st_crs(path_pts_sf) <- sf::st_crs(water_surface_main)
+
+  path_pts_4326 <- sf::st_transform(path_pts_sf, 4326) |>
+    dplyr::mutate(name = stringr::str_c(start, "to", end, sep = "_"))
+}
+
+
+test1 <- build_paths(
+  start = "Farragut Breakwater",
+  end = "Morton Slough Point"
+)
+
+# loop through all possibilities with Farragut Breakwater as the start
+
 leaflet_base |>
   addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
   addCircleMarkers(
-    data = st_transform(deployments.example_out_snapped, crs = 4326),
+    data = st_transform(deployments.example_snapped, crs = 4326),
     label = ~ str_c(location_name)
   )
+
+start_id <- "Farragut Breakwater"
+
+id_col <- "location_name"
+
+start_pt <- deployments.example_snapped |>
+  filter(.data[[id_col]] == start_id)
+
+end_pts <- deployments.example_snapped %>%
+  filter(.data[[id_col]] != start_id)
+
+farragut_test <- map(
+  end_pts$location_name,
+  ~ build_paths(start = start_id, end = .x)
+)
+
+
+leaflet_base |>
+  addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
+  addCircleMarkers(data = st_transform(test1, crs = 4326))
 
 # pull out one simple pair to work
 # out an example, McDonald's Dock to
@@ -196,26 +298,9 @@ leaflet_base |>
     data = st_transform(p2, 4326)
   )
 
-# Make a raster grid over the lake extent
-
-res_m <- 25
-
-r_template <- rast(ext(vect(water_surface_main)),
-  resolution = res_m,
-  crs = paste0("EPSG:", target_crs)
-)
-
-# rasterize: inside lake = 1, outside = NA
-
-lake_r <- rasterize(vect(water_surface_main), r_template, field = 1, background = NA)
 
 
-# ---- 3) cost surface + transition graph ----
-# We want movement allowed only through non-NA cells.
-# transitionFunction below creates a conductance graph (higher = easier).
 
-tr <- transition(raster::raster(lake_r), transitionFunction = function(x) 1, directions = 8)
-tr <- geoCorrection(tr, type = "c", scl = FALSE)
 
 # ---- 4) snap points to valid cells (inside lake) ----
 # terra::cellFromXY returns NA if point falls in NA (outside lake or in a hole).
@@ -307,3 +392,56 @@ leaflet_base |>
     data = st_transform(deployments.example, crs = 4326),
     label = ~ str_c(location_name)
   )
+
+### turn the working code into a function
+
+build_paths <- function(start, end,
+                        snapped_deployments = deployments.example_snapped,
+                        lake_raster = lake_r,
+                        transition_layer = tr) {
+  p1 <- snapped_deployments |>
+    dplyr::filter(location_name == start)
+
+  p2 <- snapped_deployments |>
+    dplyr::filter(location_name == end)
+
+  xy1 <- sf::st_coordinates(p1)
+  xy2 <- sf::st_coordinates(p2)
+
+  cell1 <- terra::cellFromXY(lake_raster, xy1)
+  cell2 <- terra::cellFromXY(lake_raster, xy2)
+
+  if (is.na(cell1) || is.na(cell2)) {
+    stop("One of the points is not on a valid (inside-lake) cell at this raster resolution.")
+  }
+
+  start_xy <- terra::xyFromCell(lake_raster, cell1)
+  end_xy <- terra::xyFromCell(lake_raster, cell2)
+
+  sp <- gdistance::shortestPath(transition_raster,
+    origin = start_xy,
+    goal = end_xy,
+    output = "SpatialLines"
+  )
+
+  path_sf <- sf::st_as_sf(sp)
+
+  spacing_m <- 100
+
+  len <- as.numeric(sf::st_length(path_sf))
+
+  d <- seq(0, len, by = spacing_m)
+
+  if (tail(d, 1) < len) d <- c(d, len) # ensure endpoint included
+
+  sfc_line <- sf::st_geometry(path_sf)[[1]]
+  pts_sfc <- sf::st_line_sample(sfc_line, sample = d / len, type = "regular")
+
+  path_pts_sf <- sf::st_as_sf(pts_sfc) |>
+    sf::st_cast("POINT")
+  path_pts_sf$dist_m <- d
+
+  sf::st_crs(path_pts_sf) <- sf::st_crs(water_surface_main)
+
+  path_pts_4326 <- sf::st_transform(path_pts_sf, 4326)
+}
