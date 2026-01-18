@@ -29,28 +29,46 @@ leaflet_base <- leaflet() %>%
   setView(lng = -116.53906, lat = 48.1, zoom = 10) %>%
   addMouseCoordinates()
 
-# Read in current deployment data, filter for LPO system
-# and drop any that don't have coordinates
+# define the path to where shared files are stored
+
+shared_parent.dir <- "~/Library/CloudStorage/OneDrive-SunnysideInsights/LPO_Acoustic_Telemetry_Sync"
 
 
-receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
-  filter(
-    waterbody == "Lake Pend Oreille",
-    !is.na(Latitude),
-    !is.na(Longitude),
-    !is.na(`Location Name`)
-  ) |>
-  select(
-    location_name = `Location Name`,
-    longitude = Longitude,
-    latitude = Latitude
-  ) |>
-  distinct() |>
-  filter(!location_name %in% c(
-    "Cement Plant Replacement",
-    "Pack Delta RR Replacement",
-    "Riley Creek Replacement"
-  ))
+# Read in location data, filter for LPO system
+
+# Deployment Locations
+
+deploy_locations.df <- read_excel(path = str_c(shared_parent.dir, "deployment_locations.xlsx", sep = "/")) |>
+  filter(waterbody == "Lake Pend Oreille")
+
+
+# receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
+#   filter(
+#     waterbody == "Lake Pend Oreille",
+#     !is.na(Latitude),
+#     !is.na(Longitude)
+#   ) |>
+#   select(
+#     location_name = `Location Name`,
+#     location_description = `Location Description`,
+#     date_in = `Receiver Date In`,
+#     date_out = `Receiver Date Out`,
+#     longitude = Longitude,
+#     latitude = Latitude
+#   ) #|>
+# distinct() |>
+#   filter(!location_name %in% c(
+#     "Cement Plant Replacement",
+#     "Pack Delta RR Replacement",
+#     "Riley Creek Replacement"
+#   ))
+
+leaflet_base |>
+  addCircleMarkers(
+    data = deploy_locations.df,
+    popup = ~ str_c(location_name)
+  )
+
 
 # set meter-base CRS to put all pieces
 # into for raster process
@@ -124,7 +142,7 @@ water_surface_main <- water_surface_main |>
 
 target_crs2 <- st_crs(water_surface_main)
 
-deployments.example <- receiver.dat |>
+deployments.example <- deploy_locations.df |>
   st_as_sf(
     coords = c("longitude", "latitude"),
     crs = 4326
@@ -294,10 +312,10 @@ build_paths <- function(start, end,
                         lake_raster = lake_r,
                         transition_layer = tr) {
   p1 <- snapped_deployments |>
-    dplyr::filter(location_name == start)
+    dplyr::filter(location_id == start)
 
   p2 <- snapped_deployments |>
-    dplyr::filter(location_name == end)
+    dplyr::filter(location_id == end)
 
   xy1 <- sf::st_coordinates(p1)
   xy2 <- sf::st_coordinates(p2)
@@ -345,8 +363,8 @@ build_paths <- function(start, end,
 
 
 test1 <- build_paths(
-  start = "Farragut Breakwater",
-  end = "River Right Railroad"
+  start = "LPO_RILEY_DOWNSTREAM",
+  end = "LPO_CEMENT_PLANT"
 )
 
 # loop through all possibilities with Farragut Breakwater as the start
@@ -359,43 +377,17 @@ leaflet_base |>
   ) |>
   addCircleMarkers(data = st_transform(test1, crs = 4326))
 
-start_id <- "Farragut Breakwater"
-
-id_col <- "location_name"
-
-start_pt <- deployments.example_snapped |>
-  filter(.data[[id_col]] == start_id)
-
-end_pts <- deployments.example_snapped %>%
-  filter(.data[[id_col]] != start_id)
-
-library(tictoc)
-tic()
-farragut_test <- map(
-  end_pts$location_name,
-  ~ build_paths(start = start_id, end = .x)
-) |>
-  bind_rows()
-toc()
-
-# test1 <- farragut_test |>
-#   filter(name == "Farragut Breakwater_to_CF at Twin Creek Mouth")
-#
-# leaflet_base |>
-#   addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
-#   addCircleMarkers(data = st_transform(test1, crs = 4326))
-
 # create df of all possible combinations
 
 pairs.df <- deployments.example_snapped2 %>%
   st_drop_geometry() |>
-  expand(location_name, location_name) %>%
+  expand(location_id, location_id) %>%
   select(start = 1, end = 2) %>%
   filter(!start == end)
 
 n_locs <- deployments.example_snapped2 |>
   st_drop_geometry() |>
-  distinct(location_name) |>
+  distinct(location_id) |>
   nrow()
 
 n_pairs <- n_locs * (n_locs - 1)
