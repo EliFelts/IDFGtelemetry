@@ -45,7 +45,12 @@ receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
     longitude = Longitude,
     latitude = Latitude
   ) |>
-  distinct()
+  distinct() |>
+  filter(!location_name %in% c(
+    "Cement Plant Replacement",
+    "Pack Delta RR Replacement",
+    "Riley Creek Replacement"
+  ))
 
 # set meter-base CRS to put all pieces
 # into for raster process
@@ -156,6 +161,41 @@ st_geometry(deployments.example_out_snapped) <- st_sfc(lapply(seq_len(nrow(snap_
 deployments.example_snapped <- deployments.example_out_snapped |>
   bind_rows(deployments.example_in)
 
+snap_to_valid_cell <- function(pts_sf, lake_raster, max_dist_m = Inf) {
+  stopifnot(inherits(pts_sf, "sf"))
+
+  # terra wants matrix of xy in raster CRS
+  xy <- sf::st_coordinates(pts_sf)
+
+  # cells that are currently NA
+  cells <- terra::cellFromXY(lake_raster, xy)
+
+  need <- which(is.na(cells))
+  if (length(need) == 0) {
+    return(pts_sf)
+  }
+
+  # all valid (non-NA) cells in the raster
+  valid_cells <- which(!is.na(terra::values(lake_raster, mat = FALSE)))
+  valid_xy <- terra::xyFromCell(lake_raster, valid_cells)
+
+  # for each NA point, find nearest valid cell center
+  for (i in need) {
+    dx <- valid_xy[, 1] - xy[i, 1]
+    dy <- valid_xy[, 2] - xy[i, 2]
+    j <- which.min(dx * dx + dy * dy)
+
+    # optional: reject if too far
+    if (is.finite(max_dist_m)) {
+      if (sqrt(dx[j]^2 + dy[j]^2) > max_dist_m) next
+    }
+
+    xy[i, ] <- valid_xy[j, ]
+  }
+
+  sf::st_geometry(pts_sf) <- sf::st_sfc(lapply(seq_len(nrow(xy)), function(i) sf::st_point(xy[i, ])), crs = sf::st_crs(pts_sf))
+  pts_sf
+}
 
 # Build the lake cost-distance raster
 
@@ -172,11 +212,75 @@ r_template <- rast(ext(vect(water_surface_main)),
 
 lake_r <- rasterize(vect(water_surface_main), r_template, field = 1, background = NA)
 
+# apply after your polygon snap:
+deployments.example_snapped2 <- snap_to_valid_cell(deployments.example_snapped, lake_r)
+
+## trying to fix points still not getting raster value of 1
+
+r_template <- lake_r
+
+# Rasterize polygon so *touched* cells are included
+water_mask <- terra::rasterize(
+  terra::vect(water_surface_main),
+  r_template,
+  field = 1,
+  touches = TRUE,
+  background = NA
+)
+
+# (Optional) convert to a cost raster: water = 1, land = NA
+cost_r <- water_mask
+terra::values(cost_r)[terra::values(cost_r) == 1] <- 1
+
+
+
+# make sure the points fall within a valid cell of lake_r
+
+snap_to_valid_cell <- function(pts_sf, lake_raster, max_dist_m = Inf) {
+  stopifnot(inherits(pts_sf, "sf"))
+
+  # terra wants matrix of xy in raster CRS
+  xy <- sf::st_coordinates(pts_sf)
+
+  # cells that are currently NA
+  cells <- terra::cellFromXY(lake_raster, xy)
+
+  need <- which(is.na(cells))
+  if (length(need) == 0) {
+    return(pts_sf)
+  }
+
+  # all valid (non-NA) cells in the raster
+  valid_cells <- which(!is.na(terra::values(lake_raster, mat = FALSE)))
+  valid_xy <- terra::xyFromCell(lake_raster, valid_cells)
+
+  # for each NA point, find nearest valid cell center
+  for (i in need) {
+    dx <- valid_xy[, 1] - xy[i, 1]
+    dy <- valid_xy[, 2] - xy[i, 2]
+    j <- which.min(dx * dx + dy * dy)
+
+    # optional: reject if too far
+    if (is.finite(max_dist_m)) {
+      if (sqrt(dx[j]^2 + dy[j]^2) > max_dist_m) next
+    }
+
+    xy[i, ] <- valid_xy[j, ]
+  }
+
+  sf::st_geometry(pts_sf) <- sf::st_sfc(lapply(seq_len(nrow(xy)), function(i) sf::st_point(xy[i, ])), crs = sf::st_crs(pts_sf))
+  pts_sf
+}
+
+# apply after your polygon snap:
+deployments.example_snapped2 <- snap_to_valid_cell(deployments.example_snapped, lake_r)
+
+
 # ---- 3) cost surface + transition graph ----
 # We want movement allowed only through non-NA cells.
 # transitionFunction below creates a conductance graph (higher = easier).
 
-tr <- transition(raster::raster(lake_r), transitionFunction = function(x) 1, directions = 8)
+tr <- transition(raster::raster(cost_r), transitionFunction = function(x) 1, directions = 8)
 tr <- geoCorrection(tr, type = "c", scl = FALSE)
 
 # now define a function that will use the inputs of the
@@ -186,7 +290,7 @@ tr <- geoCorrection(tr, type = "c", scl = FALSE)
 
 
 build_paths <- function(start, end,
-                        snapped_deployments = deployments.example_snapped,
+                        snapped_deployments = deployments.example_snapped2,
                         lake_raster = lake_r,
                         transition_layer = tr) {
   p1 <- snapped_deployments |>
@@ -235,12 +339,14 @@ build_paths <- function(start, end,
 
   path_pts_4326 <- sf::st_transform(path_pts_sf, 4326) |>
     dplyr::mutate(name = stringr::str_c(start, "to", end, sep = "_"))
+
+  return(path_pts_4326)
 }
 
 
 test1 <- build_paths(
   start = "Farragut Breakwater",
-  end = "Morton Slough Point"
+  end = "River Right Railroad"
 )
 
 # loop through all possibilities with Farragut Breakwater as the start
@@ -248,9 +354,10 @@ test1 <- build_paths(
 leaflet_base |>
   addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
   addCircleMarkers(
-    data = st_transform(deployments.example_snapped, crs = 4326),
+    data = st_transform(deployments.example_snapped2, crs = 4326),
     label = ~ str_c(location_name)
-  )
+  ) |>
+  addCircleMarkers(data = st_transform(test1, crs = 4326))
 
 start_id <- "Farragut Breakwater"
 
@@ -262,15 +369,94 @@ start_pt <- deployments.example_snapped |>
 end_pts <- deployments.example_snapped %>%
   filter(.data[[id_col]] != start_id)
 
+library(tictoc)
+tic()
 farragut_test <- map(
   end_pts$location_name,
   ~ build_paths(start = start_id, end = .x)
-)
+) |>
+  bind_rows()
+toc()
+
+# test1 <- farragut_test |>
+#   filter(name == "Farragut Breakwater_to_CF at Twin Creek Mouth")
+#
+# leaflet_base |>
+#   addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
+#   addCircleMarkers(data = st_transform(test1, crs = 4326))
+
+# create df of all possible combinations
+
+pairs.df <- deployments.example_snapped2 %>%
+  st_drop_geometry() |>
+  expand(location_name, location_name) %>%
+  select(start = 1, end = 2) %>%
+  filter(!start == end)
+
+n_locs <- deployments.example_snapped2 |>
+  st_drop_geometry() |>
+  distinct(location_name) |>
+  nrow()
+
+n_pairs <- n_locs * (n_locs - 1)
+
+n_locs
+n_pairs
+
+
+log_file <- "path_log.csv"
+if (!file.exists(log_file)) writeLines("i,start,end,stage,message", log_file)
+
+out_gpkg <- "all_paths.gpkg"
+layer <- "paths_pts"
+if (!file.exists(out_gpkg)) {
+  # create file on first successful write
+}
+
+n <- nrow(pairs.df)
+
+tic()
+for (i in seq_len(n)) {
+  st <- pairs.df$start[i]
+  en <- pairs.df$end[i]
+
+  # log BEFORE attempt
+  cat(i, st, en, "START", "", sep = ",", file = log_file, append = TRUE)
+  cat("\n", file = log_file, append = TRUE)
+
+  res <- tryCatch(
+    build_paths(
+      start = st, end = en,
+      snapped_deployments = deployments.example_snapped2,
+      lake_raster = cost_r,
+      transition_layer = tr
+    ),
+    error = function(e) e
+  )
+
+  if (inherits(res, "error")) {
+    cat(i, st, en, "ERR", gsub(",", ";", res$message), sep = ",", file = log_file, append = TRUE)
+    cat("\n", file = log_file, append = TRUE)
+  } else {
+    sf::st_write(res, out_gpkg, layer = layer, append = file.exists(out_gpkg), quiet = TRUE)
+    cat(i, st, en, "OK", "", sep = ",", file = log_file, append = TRUE)
+    cat("\n", file = log_file, append = TRUE)
+  }
+
+  rm(res)
+  if (i %% 25 == 0) gc()
+}
+toc()
+
+read_paths <- st_read("all_paths.gpkg")
+
+test <- read_paths |>
+  filter(name == "Farragut Breakwater_to_Morton Slough Point")
 
 
 leaflet_base |>
   addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
-  addCircleMarkers(data = st_transform(test1, crs = 4326))
+  addCircleMarkers(data = st_transform(test, crs = 4326))
 
 # pull out one simple pair to work
 # out an example, McDonald's Dock to
