@@ -167,8 +167,8 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, loca
       "calculated_rkm" = "rkm"
     )) |>
     dplyr::mutate(
-      det_lat = ifelse(point_type == "interpolated", lat, det_lat),
-      det_long = ifelse(point_type == "interpolated", lon, det_long),
+      det_lat = ifelse(point_type == "interpolated", latitude, det_lat),
+      det_long = ifelse(point_type == "interpolated", longitude, det_long),
       det_rkm = calculated_rkm
     )
 
@@ -188,7 +188,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, loca
     )
 
   hourly_bind <- transition |>
-    dplyr::select(-c(rowname, lon, lat)) |>
+    dplyr::select(-c(longitude, latitude)) |>
     dplyr::bind_rows(static) |>
     dplyr::mutate(fish_id = .env$fish_id)
 
