@@ -7,10 +7,10 @@
 #'   latitude (numeric), longitude (numeric), location_name (character).
 #' @param fish_id Character; unique fish identifier, e.g. `"1302740_2018-10-10_LKT"`
 #' @param paths Data frame; points between pairwise
-#' combinations of receiver deployments; defaults to network_points which loads
+#' combinations of deployment lcoations; defaults to network_points which loads
 #' the most recent version in the IDFGtelemetry package
-#' @param deployments Data frame of points (lat/long in WGS 84) for receiver deployments;
-#' default is deployments_current which loads the most recent version in the
+#' @param locations Data frame of points (lat/long in WGS 84) for receiver deployment locations;
+#' default is locations_current which loads the most recent version in the
 #' IDFGtelemetry package
 #' @return Tibble with hourly positions ('det_lat','det_long') for each fish_id, with
 #'  fields indicating observed vs interpolated, and associated receiver/location name
@@ -21,7 +21,7 @@
 #' out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
 #' head(out)
 #'
-interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
+interpolate_hourly <- function(detections, fish_id, paths = network_points, locations = locations_current) {
   if (!requireNamespace("dplyr", quietly = TRUE)) stop("dplyr needed for this function.")
   required_det_cols <- c("fish_id", "latitude", "longitude", "detection_datetime", "location_id")
   missing_cols <- setdiff(required_det_cols, colnames(detections))
@@ -41,13 +41,13 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
   if (length(locs) <= 1) {
     loc <- locs[[1]]
 
-    dep_row <- deployments |>
+    loc_row <- locationss |>
       dplyr::filter(.data$location_id == .env$loc) |>
       dplyr::slice(1)
 
-    if (nrow(dep_row) == 1) {
-      base_lat <- dep_row$latitude[[1]]
-      base_lon <- dep_row$longitude[[1]]
+    if (nrow(loc_row) == 1) {
+      base_lat <- loc_row$latitude[[1]]
+      base_lon <- loc_row$longitude[[1]]
     } else {
       base_lat <- dplyr::first(dat1$latitude)
       base_lon <- dplyr::first(dat1$longitude)
@@ -175,7 +175,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
   static <- join1 |>
     dplyr::filter(transition_start == FALSE) |>
     tidyr::fill(location_id, .direction = "down") |>
-    dplyr::left_join(deployments, by = c("location_id")) |>
+    dplyr::left_join(locations, by = c("location_id")) |>
     dplyr::mutate(
       join_name = stringr::str_c(location_id, location_id, sep = "_"),
       det_rkm = 0,
