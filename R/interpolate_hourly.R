@@ -121,16 +121,16 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, loca
     dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) |>
     dplyr::left_join(path_attributes, by = c("transition_name" = "name"))
 
-  missing_paths <- join1 |>
-    dplyr::filter(.data$transition_start, is.na(.data$length)) |>
-    dplyr::distinct(.data$transition_name)
-
-  if (nrow(missing_paths) > 0) {
-    rlang::abort(paste0(
-      "Missing path(s) in `paths` for transition(s): ",
-      paste(missing_paths$transition_name, collapse = ", ")
-    ))
-  }
+  # missing_paths <- join1 |>
+  #   dplyr::filter(.data$transition_start, is.na(.data$length)) |>
+  #   dplyr::distinct(.data$transition_name)
+  #
+  # if (nrow(missing_paths) > 0) {
+  #   rlang::abort(paste0(
+  #     "Missing path(s) in `paths` for transition(s): ",
+  #     paste(missing_paths$transition_name, collapse = ", ")
+  #   ))
+  # }
 
   transition <- join1 |>
     dplyr::filter(transition_start == TRUE) |>
