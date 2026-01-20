@@ -3,7 +3,7 @@ library(tidyverse)
 library(usethis)
 
 
-detections <- read_feather("data-raw/detections_nov25")
+detections <- read_feather("data-raw/fishdetections_jan26")
 
 detections_ex <- detections %>%
   filter(species == "WAE") %>%
