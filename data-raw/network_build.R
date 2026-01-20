@@ -7,7 +7,12 @@ library(readxl)
 network_points <- st_read("data-raw/all_paths.gpkg",
   layer = "paths_pts"
 ) |>
-  mutate(rkm = dist_m / 1000)
+  mutate(
+    rkm = dist_m / 1000,
+    longitude = st_coordinates(geom)[, 1],
+    latitude = st_coordinates(geom)[, 2]
+  ) |>
+  st_drop_geometry()
 
 # locations_current <- read_feather("data-raw/locations")
 #
