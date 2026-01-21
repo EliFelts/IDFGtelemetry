@@ -396,17 +396,17 @@ n_locs
 n_pairs
 
 
-log_file <- "path_log.csv"
-if (!file.exists(log_file)) writeLines("i,start,end,stage,message", log_file)
-
 out_gpkg <- "all_paths.gpkg"
-layer <- "paths_pts"
-if (!file.exists(out_gpkg)) {
-  # create file on first successful write
-}
+layer_name <- "paths_pts"
+if (file.exists(out_gpkg)) file.remove(out_gpkg)
+
+log_file <- "path_log.csv"
+if (file.exists(log_file)) file.remove(log_file)
+writeLines("i,start,end,stage,message", log_file)
 
 n <- nrow(pairs.df)
 
+library(tictoc)
 tic()
 for (i in seq_len(n)) {
   st <- pairs.df$start[i]
@@ -430,7 +430,7 @@ for (i in seq_len(n)) {
     cat(i, st, en, "ERR", gsub(",", ";", res$message), sep = ",", file = log_file, append = TRUE)
     cat("\n", file = log_file, append = TRUE)
   } else {
-    sf::st_write(res, out_gpkg, layer = layer, append = file.exists(out_gpkg), quiet = TRUE)
+    sf::st_write(res, out_gpkg, layer = layer_name, append = file.exists(out_gpkg), quiet = TRUE)
     cat(i, st, en, "OK", "", sep = ",", file = log_file, append = TRUE)
     cat("\n", file = log_file, append = TRUE)
   }
@@ -439,3 +439,17 @@ for (i in seq_len(n)) {
   if (i %% 25 == 0) gc()
 }
 toc()
+
+test <- st_read("all_paths.gpkg",
+  layer = "paths_pts"
+) |>
+  mutate(rkm = dist_m / 1000)
+
+test_summary <- test |>
+  filter(name == "LPO_ANDERSON_POINT_to_LPO_CAPEHORN")
+
+st_write(water_corridor, dsn = "all_paths.gpkg", layer = "water_corridor")
+
+
+leaflet_base |>
+  addPolygons(data = water_corridor)
