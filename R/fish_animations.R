@@ -62,7 +62,7 @@ fish_animation <- function(hourly_detections, duration = 60,
     fps = fps, nframes = nframes,
     height = 6, width = 12, units = "in",
     res = 150,
-    renderer = av_renderer(outfile)
+    renderer = gganimate::av_renderer(outfile)
   )
 
   return(invisible(outfile))
