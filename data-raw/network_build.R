@@ -33,3 +33,9 @@ locations_current <- read_excel(path = str_c(shared_parent.dir, "deployment_loca
   filter(waterbody == "Lake Pend Oreille")
 
 use_data(locations_current, overwrite = TRUE)
+
+lpo_map <- st_read("data-raw/all_paths.gpkg",
+  layer = "water_corridor"
+)
+
+use_data(lpo_map, overwrite = T)

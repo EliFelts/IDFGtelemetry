@@ -448,7 +448,7 @@ test <- st_read("all_paths.gpkg",
 test_summary <- test |>
   filter(name == "LPO_ANDERSON_POINT_to_LPO_CAPEHORN")
 
-st_write(water_corridor, dsn = "all_paths.gpkg", layer = "water_corridor")
+st_write(water_corridor, dsn = "data-raw/all_paths.gpkg", layer = "water_corridor")
 
 
 leaflet_base |>
