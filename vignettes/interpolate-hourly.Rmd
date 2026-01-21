@@ -206,8 +206,40 @@ iterate_example <- map_dfr(
 
 The majority of the time, iterating over a group will be the best approach unless you know beforehand you want to examine a specific individual. With this hourly data set for each individual in a group, it is straightforward to iterate on the `fish_animations()` function to build animations for each fish in the group.
 
+A single fish
+
 ```{r}
 
 fish_animation(hourly_detections = ind_example)
+
+```
+
+A group of fish all in the same animation
+
+```{r}
+
+fish_animation(hourly_detections = iterate_example)
+
+```
+
+Make a separate animation for each fish.
+
+```{r}
+
+by_fish_example <- iterate_example |> 
+  group_split(fish_id,.keep = T)
+
+fish_ids_example <- iterate_example |> 
+  distinct(fish_id) |> 
+  pull(fish_id)
+
+fish_animate_ind_example <- map2(
+  by_fish_example,fish_ids_example,
+  ~fish_animation(
+    hourly_detections = .x,
+    out_dir = "animations/individuals",
+    filename = paste0("fish_",.y)
+  )
+)
 
 ```
