@@ -8,11 +8,14 @@ detections <- read_feather("data-raw/fishdetections_jan26")
 detections_ex <- detections %>%
   filter(species == "WAE") %>%
   mutate(detection_year = year(detection_date)) %>%
-  filter(detection_year == 2024)
+  filter(
+    detection_year == 2024,
+    flag_false == F
+  )
 
 detection.sum <- detections_ex %>%
   group_by(fish_id) %>%
-  summarize(locations = n_distinct(location_name)) %>%
+  summarize(locations = n_distinct(location_id)) %>%
   filter(locations > 15)
 
 detections_example <- detections_ex %>%

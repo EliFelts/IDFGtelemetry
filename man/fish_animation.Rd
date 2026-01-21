@@ -9,7 +9,7 @@ fish_animation(
   duration = 60,
   fps = 20,
   trail_seconds = 2,
-  waterbody_shape = lpo.shp,
+  waterbody_shape = lpo_map,
   out_dir = "animations",
   filename = NULL
 )
