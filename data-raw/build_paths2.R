@@ -8,6 +8,7 @@ library(leaflet)
 library(leafem)
 library(rnaturalearth)
 library(units)
+library(lwgeom)
 
 conflicts_prefer(
   dplyr::filter,
@@ -41,6 +42,12 @@ shared_parent.dir <- "~/Library/CloudStorage/OneDrive-SunnysideInsights/LPO_Acou
 deploy_locations.df <- read_excel(path = str_c(shared_parent.dir, "deployment_locations.xlsx", sep = "/")) |>
   filter(waterbody == "Lake Pend Oreille")
 
+leaflet_base |>
+  addCircleMarkers(
+    data = deploy_locations.df,
+    lat = ~latitude,
+    lng = ~longitude
+  )
 
 # receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
 #   filter(
@@ -64,6 +71,7 @@ deploy_locations.df <- read_excel(path = str_c(shared_parent.dir, "deployment_lo
 #   ))
 
 leaflet_base |>
+  addPolylines(data = st_transform(lake, crs = 4326)) |>
   addCircleMarkers(
     data = deploy_locations.df,
     popup = ~ str_c(location_name)
@@ -450,6 +458,4 @@ test_summary <- test |>
 
 st_write(water_corridor, dsn = "data-raw/all_paths.gpkg", layer = "water_corridor")
 
-
-leaflet_base |>
-  addPolygons(data = water_corridor)
+# make the water corridor but trim off upstream parts of lightning and pack
