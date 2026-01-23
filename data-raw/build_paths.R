@@ -49,35 +49,6 @@ leaflet_base |>
     lng = ~longitude
   )
 
-# receiver.dat <- read_excel("data-raw/Receiver Info 7_1_25.xlsx") |>
-#   filter(
-#     waterbody == "Lake Pend Oreille",
-#     !is.na(Latitude),
-#     !is.na(Longitude)
-#   ) |>
-#   select(
-#     location_name = `Location Name`,
-#     location_description = `Location Description`,
-#     date_in = `Receiver Date In`,
-#     date_out = `Receiver Date Out`,
-#     longitude = Longitude,
-#     latitude = Latitude
-#   ) #|>
-# distinct() |>
-#   filter(!location_name %in% c(
-#     "Cement Plant Replacement",
-#     "Pack Delta RR Replacement",
-#     "Riley Creek Replacement"
-#   ))
-
-leaflet_base |>
-  addPolylines(data = st_transform(lake, crs = 4326)) |>
-  addCircleMarkers(
-    data = deploy_locations.df,
-    popup = ~ str_c(location_name)
-  )
-
-
 # set meter-base CRS to put all pieces
 # into for raster process
 
@@ -139,6 +110,7 @@ water_surface_main <- water_surface_main |>
 
 
 clean_m <- 2
+
 water_surface_main <- water_surface_main |>
   st_buffer(clean_m) |>
   st_buffer(-clean_m) |>
@@ -370,21 +342,6 @@ build_paths <- function(start, end,
 }
 
 
-test1 <- build_paths(
-  start = "LPO_RILEY_DOWNSTREAM",
-  end = "LPO_CEMENT_PLANT"
-)
-
-# loop through all possibilities with Farragut Breakwater as the start
-
-leaflet_base |>
-  addPolygons(data = st_transform(water_surface_main, crs = 4326)) |>
-  addCircleMarkers(
-    data = st_transform(deployments.example_snapped2, crs = 4326),
-    label = ~ str_c(location_name)
-  ) |>
-  addCircleMarkers(data = st_transform(test1, crs = 4326))
-
 # create df of all possible combinations
 
 pairs.df <- deployments.example_snapped2 %>%
@@ -404,18 +361,16 @@ n_locs
 n_pairs
 
 
-out_gpkg <- "all_paths.gpkg"
+out_gpkg <- "data-raw/all_paths.gpkg"
 layer_name <- "paths_pts"
 if (file.exists(out_gpkg)) file.remove(out_gpkg)
 
-log_file <- "path_log.csv"
+log_file <- "data-raw/path_log.csv"
 if (file.exists(log_file)) file.remove(log_file)
 writeLines("i,start,end,stage,message", log_file)
 
 n <- nrow(pairs.df)
 
-library(tictoc)
-tic()
 for (i in seq_len(n)) {
   st <- pairs.df$start[i]
   en <- pairs.df$end[i]
@@ -446,16 +401,3 @@ for (i in seq_len(n)) {
   rm(res)
   if (i %% 25 == 0) gc()
 }
-toc()
-
-test <- st_read("all_paths.gpkg",
-  layer = "paths_pts"
-) |>
-  mutate(rkm = dist_m / 1000)
-
-test_summary <- test |>
-  filter(name == "LPO_ANDERSON_POINT_to_LPO_CAPEHORN")
-
-st_write(water_corridor, dsn = "data-raw/all_paths.gpkg", layer = "water_corridor")
-
-# make the water corridor but trim off upstream parts of lightning and pack
