@@ -29,6 +29,7 @@ use_data(lpo_lines, overwrite = T)
 lpo_polygon <- st_read(
   dsn = "data-raw/idfg_habitat_mapping.gpkg",
   layer = "lakes"
-)
+) |>
+  filter(name == "Lake Pend Oreille")
 
 use_data(lpo_polygon, overwrite = T)
