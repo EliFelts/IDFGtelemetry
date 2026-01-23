@@ -41,7 +41,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, loca
   if (length(locs) <= 1) {
     loc <- locs[[1]]
 
-    loc_row <- locationss |>
+    loc_row <- locations |>
       dplyr::filter(.data$location_id == .env$loc) |>
       dplyr::slice(1)
 
