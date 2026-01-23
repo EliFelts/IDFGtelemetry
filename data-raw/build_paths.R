@@ -71,6 +71,10 @@ id.sf <- ne_states(returnclass = "sf") |>
   filter(name == "Idaho")
 
 
+
+leaflet_base |>
+  addPolylines(data = st_transform(streams, crs = 4326))
+
 streams <- st_read(
   dsn = "data-raw/idfg_habitat_mapping.gpkg",
   layer = "streams"
