@@ -9,6 +9,7 @@ library(leafem)
 library(rnaturalearth)
 library(units)
 library(lwgeom)
+library(usethis)
 
 conflicts_prefer(
   dplyr::filter,
@@ -401,3 +402,24 @@ for (i in seq_len(n)) {
   rm(res)
   if (i %% 25 == 0) gc()
 }
+
+
+# extract waypoint to column and convert
+# m to rkm; this will make the data file
+# that's attached to the package be a
+# simple table and not an sf object
+
+network_points <- st_read("data-raw/all_paths.gpkg",
+  layer = "paths_pts"
+) |>
+  mutate(
+    rkm = dist_m / 1000,
+    longitude = st_coordinates(geom)[, 1],
+    latitude = st_coordinates(geom)[, 2]
+  ) |>
+  st_drop_geometry()
+
+# make the network_points table a data
+# object for the package
+
+use_data(network_points, overwrite = TRUE)
