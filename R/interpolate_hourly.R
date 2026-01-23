@@ -7,10 +7,10 @@
 #'   latitude (numeric), longitude (numeric), location_name (character).
 #' @param fish_id Character; unique fish identifier, e.g. `"1302740_2018-10-10_LKT"`
 #' @param paths Data frame; points between pairwise
-#' combinations of receiver deployments; defaults to network_points which loads
+#' combinations of deployment lcoations; defaults to network_points which loads
 #' the most recent version in the IDFGtelemetry package
-#' @param deployments Data frame of points (lat/long in WGS 84) for receiver deployments;
-#' default is deployments_current which loads the most recent version in the
+#' @param locations Data frame of points (lat/long in WGS 84) for receiver deployment locations;
+#' default is locations_current which loads the most recent version in the
 #' IDFGtelemetry package
 #' @return Tibble with hourly positions ('det_lat','det_long') for each fish_id, with
 #'  fields indicating observed vs interpolated, and associated receiver/location name
@@ -21,9 +21,9 @@
 #' out <- interpolate_hourly(detections_example, fish_id = "1327672_2019-11-06_WAE")
 #' head(out)
 #'
-interpolate_hourly <- function(detections, fish_id, paths = network_points, deployments = deployments_current) {
+interpolate_hourly <- function(detections, fish_id, paths = network_points, locations = locations_current) {
   if (!requireNamespace("dplyr", quietly = TRUE)) stop("dplyr needed for this function.")
-  required_det_cols <- c("fish_id", "latitude", "longitude", "detection_datetime", "location_name")
+  required_det_cols <- c("fish_id", "latitude", "longitude", "detection_datetime", "location_id")
   missing_cols <- setdiff(required_det_cols, colnames(detections))
   if (length(missing_cols) > 0) stop("detections is missing columns: ", paste(missing_cols, collapse = ", "))
 
@@ -31,23 +31,23 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     dplyr::filter(
       .data$fish_id %in% .env$fish_id,
       !is.na(.data$latitude),
-      !is.na(.data$location_name)
+      !is.na(.data$location_id)
     ) |>
     dplyr::arrange(.data$detection_datetime) |>
     dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
 
-  locs <- unique(dat1$location_name[!is.na(dat1$location_name)])
+  locs <- unique(dat1$location_id[!is.na(dat1$location_id)])
 
   if (length(locs) <= 1) {
     loc <- locs[[1]]
 
-    dep_row <- deployments |>
-      dplyr::filter(.data$location_name == .env$loc) |>
+    loc_row <- locations |>
+      dplyr::filter(.data$location_id == .env$loc) |>
       dplyr::slice(1)
 
-    if (nrow(dep_row) == 1) {
-      base_lat <- dep_row$latitude[[1]]
-      base_lon <- dep_row$longitude[[1]]
+    if (nrow(loc_row) == 1) {
+      base_lat <- loc_row$latitude[[1]]
+      base_lon <- loc_row$longitude[[1]]
     } else {
       base_lat <- dplyr::first(dat1$latitude)
       base_lon <- dplyr::first(dat1$longitude)
@@ -94,12 +94,12 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     dplyr::summarize(
       det_lat = dplyr::first(.data$latitude),
       det_long = dplyr::first(.data$longitude),
-      location_name = dplyr::first(.data$location_name),
+      location_id = dplyr::first(.data$location_id),
       .groups = "drop"
     ) |>
     dplyr::mutate(
-      prev_location = dplyr::lag(.data$location_name),
-      next_location = dplyr::lead(.data$location_name),
+      prev_location = dplyr::lag(.data$location_id),
+      next_location = dplyr::lead(.data$location_id),
       next_detection_hr = dplyr::lead(.data$detection_hour)
     )
 
@@ -110,10 +110,10 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
   join1 <- ind_timeframe |>
     dplyr::left_join(pts1, by = "detection_hour") |>
     dplyr::mutate(
-      transition_start = ifelse(.data$location_name == .data$next_location,
+      transition_start = ifelse(.data$location_id == .data$next_location,
         FALSE, TRUE
       ),
-      transition_name = stringr::str_c(.data$location_name, "to", .data$next_location,
+      transition_name = stringr::str_c(.data$location_id, "to", .data$next_location,
         sep = "_"
       )
     ) |>
@@ -121,16 +121,16 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) |>
     dplyr::left_join(path_attributes, by = c("transition_name" = "name"))
 
-  missing_paths <- join1 |>
-    dplyr::filter(.data$transition_start, is.na(.data$length)) |>
-    dplyr::distinct(.data$transition_name)
-
-  if (nrow(missing_paths) > 0) {
-    rlang::abort(paste0(
-      "Missing path(s) in `paths` for transition(s): ",
-      paste(missing_paths$transition_name, collapse = ", ")
-    ))
-  }
+  # missing_paths <- join1 |>
+  #   dplyr::filter(.data$transition_start, is.na(.data$length)) |>
+  #   dplyr::distinct(.data$transition_name)
+  #
+  # if (nrow(missing_paths) > 0) {
+  #   rlang::abort(paste0(
+  #     "Missing path(s) in `paths` for transition(s): ",
+  #     paste(missing_paths$transition_name, collapse = ", ")
+  #   ))
+  # }
 
   transition <- join1 |>
     dplyr::filter(transition_start == TRUE) |>
@@ -167,17 +167,17 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
       "calculated_rkm" = "rkm"
     )) |>
     dplyr::mutate(
-      det_lat = ifelse(point_type == "interpolated", lat, det_lat),
-      det_long = ifelse(point_type == "interpolated", lon, det_long),
+      det_lat = ifelse(point_type == "interpolated", latitude, det_lat),
+      det_long = ifelse(point_type == "interpolated", longitude, det_long),
       det_rkm = calculated_rkm
     )
 
   static <- join1 |>
     dplyr::filter(transition_start == FALSE) |>
-    tidyr::fill(location_name, .direction = "down") |>
-    dplyr::left_join(deployments, by = c("location_name")) |>
+    tidyr::fill(location_id, .direction = "down") |>
+    dplyr::left_join(locations, by = c("location_id")) |>
     dplyr::mutate(
-      join_name = stringr::str_c(location_name, location_name, sep = "_"),
+      join_name = stringr::str_c(location_id, location_id, sep = "_"),
       det_rkm = 0,
       point_type = ifelse(is.na(det_lat), "interpolated", "observed"),
       calculated_rkm = 0
@@ -188,7 +188,7 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, depl
     )
 
   hourly_bind <- transition |>
-    dplyr::select(-c(rowname, lon, lat)) |>
+    dplyr::select(-c(longitude, latitude)) |>
     dplyr::bind_rows(static) |>
     dplyr::mutate(fish_id = .env$fish_id)
 

@@ -9,7 +9,8 @@ fish_animation(
   duration = 60,
   fps = 20,
   trail_seconds = 2,
-  waterbody_shape = lpo.shp,
+  lake_shape = lpo_polygon,
+  river_shape = lpo_lines,
   out_dir = "animations",
   filename = NULL
 )
@@ -23,11 +24,11 @@ fish_animation(
 
 \item{trail_seconds}{seconds of wake showing trail behind current point (converted to proportion internally)}
 
-\item{waterbody_shape}{sf polygon of waterbody, defaults to Lake Pend Oreille currently}
-
 \item{out_dir}{Directory where animations will be saved; if it doesn't already exist, an "animations" folder will be created by default}
 
 \item{filename}{Animation file name}
+
+\item{waterbody_shape}{sf polygon of waterbody, defaults to Lake Pend Oreille currently}
 }
 \value{
 An animation in .webm format

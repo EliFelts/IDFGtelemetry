@@ -36,19 +36,21 @@ The `IDFGtelemetry` package itself isn't on CRAN so it needs to be loaded from t
 
 ```{r, eval=FALSE}
 
-install.packages("remotes")
-remotes::install_github("EliFelts/IDFGtelemetry", force=TRUE)
+# install.packages("remotes")
+# remotes::install_github("EliFelts/IDFGtelemetry", force=TRUE)
+
+devtools::document()
+devtools::load_all()
 
 ```
 
 Now load the packages we'll need.
 
-```{r setup, eval=FALSE, message=FALSE}
+```{r setup, warning=FALSE, message=FALSE}
 
 library(IDFGtelemetry)
 library(tidyverse)
-library(arrow)
-
+library(gganimate)
 ```
 
 ## Individual Fish
@@ -63,12 +65,124 @@ unique(detections_example$fish_id)
 
 ```
 
-Just grab the first one and subset detections of that indiviual. Note that a data frame of current deployments and the associated network of pairwise connections between those deployments, represented by points at 0.1 km intervals, are loaded with the package as well.
+Just grab the first one and subset detections of that individual. Note that a data frame of current deployments and the associated network of pairwise connections between those deployments, represented by points at 0.1 km intervals, are loaded with the package as well.
+
+```{r}
+ 
+ind_example <- interpolate_hourly(detections = detections_example,
+                                  fish_id = "1327672_2019-11-06_WAE") 
+
+```
 
 ```{r}
 
-ind_example <- interpolate_hourly(detections = detections_example,
-                                  fish_id = "1327672_2019-11-06_WAE")
+test1 <- detections_example |> 
+    dplyr::filter(
+      fish_id == "1327672_2019-11-06_WAE",
+      !is.na(.data$latitude),
+      !is.na(.data$location_id)
+    ) |>
+    dplyr::arrange(.data$detection_datetime) |>
+    dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
+
+locs_test <- unique(test1$location_id[!is.na(test1$location_id)])
+
+ind_timeframe_test <- tibble::tibble(detection_hour = seq(min(test1$detection_hour),
+    max(test1$detection_hour),
+    by = "hours"
+  ))
+
+  test_pts1 <- test1 |>
+    dplyr::group_by(detection_hour) |>
+    dplyr::summarize(
+      det_lat = dplyr::first(.data$latitude),
+      det_long = dplyr::first(.data$longitude),
+      location_id = dplyr::first(.data$location_id),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      prev_location = dplyr::lag(.data$location_id),
+      next_location = dplyr::lead(.data$location_id),
+      next_detection_hr = dplyr::lead(.data$detection_hour)
+    )
+  
+  path_attributes_test <- network_points |>
+    dplyr::group_by(name) |>
+    dplyr::summarize(length = max(rkm))
+  
+   join1_test <- ind_timeframe_test |>
+    dplyr::left_join(test_pts1, by = "detection_hour") |>
+    dplyr::mutate(
+      transition_start = ifelse(.data$location_id == .data$next_location,
+        FALSE, TRUE
+      ),
+      transition_name = stringr::str_c(.data$location_id, "to", .data$next_location,
+        sep = "_"
+      )
+    ) |>
+    tidyr::fill(transition_start, .direction = "down") |>
+    dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) |>
+    dplyr::left_join(path_attributes_test, by = c("transition_name" = "name"))
+  
+  transition_test <- join1_test |>
+    dplyr::filter(transition_start == TRUE) |>
+    dplyr::mutate(
+      interval_id = stringr::str_c(detection_hour, transition_name, sep = "_"),
+      transition_distance = length
+    ) |>
+    tidyr::fill(interval_id, .direction = "down") |>
+    tidyr::fill(next_detection_hr, .direction = "down") |>
+    dplyr::group_by(interval_id) |>
+    dplyr::mutate(
+      group_count = dplyr::n(),
+      group_start_hour = dplyr::first(detection_hour),
+      rowname = dplyr::row_number(),
+      advance_rate = transition_distance / group_count,
+      join_name = transition_name
+    ) |>
+    tidyr::fill(advance_rate, .direction = "down") |>
+    tidyr::fill(join_name, .direction = "down") |>
+    dplyr::ungroup() |>
+    dplyr::mutate(
+      calculated_rkm = round(((rowname - 1) * advance_rate), 1),
+      point_type = ifelse(is.na(det_lat), "interpolated", "observed")
+    ) |>
+    dplyr::select(
+      detection_hour, join_name, det_lat, det_long,
+      point_type, calculated_rkm
+    ) |>
+    dplyr::mutate(calculated_rkm = ifelse(calculated_rkm == 0, 0.1,
+      calculated_rkm
+    )) |>
+    dplyr::left_join(network_points, by = c(
+      "join_name" = "name",
+      "calculated_rkm" = "rkm"
+    )) |>
+    dplyr::mutate(
+      det_lat = ifelse(point_type == "interpolated", latitude, det_lat),
+      det_long = ifelse(point_type == "interpolated", longitude, det_long),
+      det_rkm = calculated_rkm
+    )
+  
+  static_test <- join1_test |>
+    dplyr::filter(transition_start == FALSE) |>
+    tidyr::fill(location_id, .direction = "down") |>
+    dplyr::left_join(locations_current, by = c("location_id")) |>
+    dplyr::mutate(
+      join_name = stringr::str_c(location_id, location_id, sep = "_"),
+      det_rkm = 0,
+      point_type = ifelse(is.na(det_lat), "interpolated", "observed"),
+      calculated_rkm = 0
+    ) |>
+    dplyr::select(detection_hour, join_name,
+      det_lat = latitude, det_long = longitude,
+      det_rkm, point_type, calculated_rkm
+    )
+
+   hourly_bind_test <- transition_test |>
+    dplyr::select(-c(longitude, latitude)) |>
+    dplyr::bind_rows(static_test) #|>
+    dplyr::mutate(fish_id = .env$fish_id)
 
 ```
 
@@ -91,3 +205,41 @@ iterate_example <- map_dfr(
 ```
 
 The majority of the time, iterating over a group will be the best approach unless you know beforehand you want to examine a specific individual. With this hourly data set for each individual in a group, it is straightforward to iterate on the `fish_animations()` function to build animations for each fish in the group.
+
+An animation of a single fish can be produced with the following code. Note that this will take a while to run and when finished will export the video file to an "animations" folder. If you don't already have such a folder in your working directory it will create one. If you wish to export the animation to a different location you can specify that in the out_dir argument of the function.
+
+```{r}
+
+fish_animation(hourly_detections = ind_example)
+
+```
+
+A group of fish all in the same animation
+
+```{r}
+
+fish_animation(hourly_detections = iterate_example)
+
+```
+
+Make a separate animation for each fish.
+
+```{r}
+
+by_fish_example <- iterate_example |> 
+  group_split(fish_id,.keep = T)
+
+fish_ids_example <- iterate_example |> 
+  distinct(fish_id) |> 
+  pull(fish_id)
+
+fish_animate_ind_example <- map2(
+  by_fish_example,fish_ids_example,
+  ~fish_animation(
+    hourly_detections = .x,
+    out_dir = "animations/individuals",
+    filename = paste0("fish_",.y)
+  )
+)
+
+```

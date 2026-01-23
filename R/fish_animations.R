@@ -12,7 +12,8 @@
 #'
 fish_animation <- function(hourly_detections, duration = 60,
                            fps = 20, trail_seconds = 2,
-                           waterbody_shape = lpo.shp,
+                           lake_shape = lpo_polygon,
+                           river_shape = lpo_lines,
                            out_dir = "animations",
                            filename = NULL) {
   if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
@@ -30,7 +31,8 @@ fish_animation <- function(hourly_detections, duration = 60,
 
   static_map <- hourly_detections %>%
     ggplot2::ggplot() +
-    ggplot2::geom_sf(data = waterbody_shape) +
+    ggplot2::geom_sf(data = lake_shape) +
+    ggplot2::geom_sf(data = river_shape) +
     ggplot2::geom_point(
       aes(
         x = det_long, y = det_lat,
@@ -62,7 +64,7 @@ fish_animation <- function(hourly_detections, duration = 60,
     fps = fps, nframes = nframes,
     height = 6, width = 12, units = "in",
     res = 150,
-    renderer = av_renderer(outfile)
+    renderer = gganimate::av_renderer(outfile)
   )
 
   return(invisible(outfile))

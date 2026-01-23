@@ -2,3 +2,5 @@
 
 export(fish_animation)
 export(interpolate_hourly)
+importFrom(rlang,.data)
+importFrom(rlang,.env)
