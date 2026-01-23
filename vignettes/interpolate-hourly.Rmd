@@ -206,7 +206,7 @@ iterate_example <- map_dfr(
 
 The majority of the time, iterating over a group will be the best approach unless you know beforehand you want to examine a specific individual. With this hourly data set for each individual in a group, it is straightforward to iterate on the `fish_animations()` function to build animations for each fish in the group.
 
-A single fish
+An animation of a single fish can be produced with the following code. Note that this will take a while to run and when finished will export the video file to an "animations" folder. If you don't already have such a folder in your working directory it will create one. If you wish to export the animation to a different location you can specify that in the out_dir argument of the function.
 
 ```{r}
 
