@@ -29,3 +29,8 @@ within a rolling 1-hour window. This criteria is intended to distinguish true su
 detection that may occur from long-range hits or noise. Flagged clusters should not be right-censored without
 further inspection.
 }
+\examples{
+data("detections_example", package = "IDFGtelemetry")
+out <- identify_cluster(detection.df = detections_example)
+head(out)
+}
