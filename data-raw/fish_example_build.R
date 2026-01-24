@@ -21,8 +21,13 @@ detection.sum <- detections_ex %>%
   ) %>%
   filter(locations > 15)
 
+add_fish <- c(
+  "1351455_2021-04-19_WAE",
+  "1327666_2020-04-28_WAE"
+)
+
 detections_example <- detections_ex %>%
   filter(fish_id %in% detection.sum$fish_id |
-    fish_id == "1327666_2020-04-28_WAE")
+    fish_id %in% add_fish)
 
 use_data(detections_example, overwrite = TRUE)
