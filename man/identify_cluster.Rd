@@ -26,5 +26,6 @@ in a way that indicates the fish may have died or shed their tag within range of
 clusters are dropped if credible patterns of detections occur subsequently at different locations; "credible"
 detections are those where individuals are present in at least three ten-minute bins at a different location
 within a rolling 1-hour window. This criteria is intended to distinguish true subsequent presence from isolated
-detection that may occur from long-range hits or noise.
+detection that may occur from long-range hits or noise. Flagged clusters should not be right-censored without
+further inspection.
 }
