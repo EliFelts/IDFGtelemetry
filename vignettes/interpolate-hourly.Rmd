@@ -1,5 +1,5 @@
 ---
-title: "Interpolating hourly fish locations"
+title: "Interpolating and animating hourly fish locations"
 output: rmarkdown::html_vignette
 vignette: >
   %\VignetteIndexEntry{Interpolating hourly fish locations}
@@ -17,6 +17,8 @@ knitr::opts_chunk$set(
 # Overview
 
 The function `interpolate_hourly()` is used to construct best estimates of hourly locations for individual fish based on detection histories. The location for each hour during which an individual fish was actually detected is summarized - if an individual was detected at multiple locations during an hour this will give the first detection in that hour. The next actual detection is also logged, then the data table is expanded to include each hour from the first actual detection to the latest for each individual. If sequential actual detections are at the same location then intervening hours assume that individual remained at that location. If sequential actual detections are at different locations then intervening hours assume that individuals moved at a constant rate between those locations over the span of time between actual detections. These locations are snapped to the nearest 0.1 km points assuming the fish moved in the straightest possible path while remaining in the water.
+
+This vignette will demonstrate how to use `interpolate_hourly()` for individual fish or across groups, and how to feed the hourly data output from that function into `fish_animation()` function to create animations to visualize the hourly interpolated movement patterns of an individual or a group of fish.
 
 ## Assumptions
 
@@ -55,9 +57,9 @@ library(gganimate)
 
 ## Individual Fish
 
-The `IDFGtelemetry` package includes an example data set, `detections_example` that includes detections of 5 Walleye which moved a substantial amount for the entire calendar year 2024.
+The `IDFGtelemetry` package includes an example data set, `detections_example` that includes detections of 8 Walleye which moved a substantial amount for the entire calendar year 2024.
 
-First, subset an individual fish and run the function to interpolate locations for that individual. Get id for individuals:
+First, subset an individual fish and run the function to interpolate locations for that individual. Here, view a list of the unique fish in the example data set.
 
 ```{r}
 
@@ -65,124 +67,12 @@ unique(detections_example$fish_id)
 
 ```
 
-Just grab the first one and subset detections of that individual. Note that a data frame of current deployments and the associated network of pairwise connections between those deployments, represented by points at 0.1 km intervals, are loaded with the package as well.
+Now use the first `fish_id` from that group and subset detections of that individual. Note that a data frame of deployment locations (`locations_current`) and the associated network of pairwise connections between those deployments (`network_points`), represented by points at 0.1 km intervals, are loaded with the package as well.
 
 ```{r}
  
 ind_example <- interpolate_hourly(detections = detections_example,
                                   fish_id = "1327672_2019-11-06_WAE") 
-
-```
-
-```{r}
-
-test1 <- detections_example |> 
-    dplyr::filter(
-      fish_id == "1327672_2019-11-06_WAE",
-      !is.na(.data$latitude),
-      !is.na(.data$location_id)
-    ) |>
-    dplyr::arrange(.data$detection_datetime) |>
-    dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
-
-locs_test <- unique(test1$location_id[!is.na(test1$location_id)])
-
-ind_timeframe_test <- tibble::tibble(detection_hour = seq(min(test1$detection_hour),
-    max(test1$detection_hour),
-    by = "hours"
-  ))
-
-  test_pts1 <- test1 |>
-    dplyr::group_by(detection_hour) |>
-    dplyr::summarize(
-      det_lat = dplyr::first(.data$latitude),
-      det_long = dplyr::first(.data$longitude),
-      location_id = dplyr::first(.data$location_id),
-      .groups = "drop"
-    ) |>
-    dplyr::mutate(
-      prev_location = dplyr::lag(.data$location_id),
-      next_location = dplyr::lead(.data$location_id),
-      next_detection_hr = dplyr::lead(.data$detection_hour)
-    )
-  
-  path_attributes_test <- network_points |>
-    dplyr::group_by(name) |>
-    dplyr::summarize(length = max(rkm))
-  
-   join1_test <- ind_timeframe_test |>
-    dplyr::left_join(test_pts1, by = "detection_hour") |>
-    dplyr::mutate(
-      transition_start = ifelse(.data$location_id == .data$next_location,
-        FALSE, TRUE
-      ),
-      transition_name = stringr::str_c(.data$location_id, "to", .data$next_location,
-        sep = "_"
-      )
-    ) |>
-    tidyr::fill(transition_start, .direction = "down") |>
-    dplyr::mutate(transition_start = dplyr::coalesce(.data$transition_start, FALSE)) |>
-    dplyr::left_join(path_attributes_test, by = c("transition_name" = "name"))
-  
-  transition_test <- join1_test |>
-    dplyr::filter(transition_start == TRUE) |>
-    dplyr::mutate(
-      interval_id = stringr::str_c(detection_hour, transition_name, sep = "_"),
-      transition_distance = length
-    ) |>
-    tidyr::fill(interval_id, .direction = "down") |>
-    tidyr::fill(next_detection_hr, .direction = "down") |>
-    dplyr::group_by(interval_id) |>
-    dplyr::mutate(
-      group_count = dplyr::n(),
-      group_start_hour = dplyr::first(detection_hour),
-      rowname = dplyr::row_number(),
-      advance_rate = transition_distance / group_count,
-      join_name = transition_name
-    ) |>
-    tidyr::fill(advance_rate, .direction = "down") |>
-    tidyr::fill(join_name, .direction = "down") |>
-    dplyr::ungroup() |>
-    dplyr::mutate(
-      calculated_rkm = round(((rowname - 1) * advance_rate), 1),
-      point_type = ifelse(is.na(det_lat), "interpolated", "observed")
-    ) |>
-    dplyr::select(
-      detection_hour, join_name, det_lat, det_long,
-      point_type, calculated_rkm
-    ) |>
-    dplyr::mutate(calculated_rkm = ifelse(calculated_rkm == 0, 0.1,
-      calculated_rkm
-    )) |>
-    dplyr::left_join(network_points, by = c(
-      "join_name" = "name",
-      "calculated_rkm" = "rkm"
-    )) |>
-    dplyr::mutate(
-      det_lat = ifelse(point_type == "interpolated", latitude, det_lat),
-      det_long = ifelse(point_type == "interpolated", longitude, det_long),
-      det_rkm = calculated_rkm
-    )
-  
-  static_test <- join1_test |>
-    dplyr::filter(transition_start == FALSE) |>
-    tidyr::fill(location_id, .direction = "down") |>
-    dplyr::left_join(locations_current, by = c("location_id")) |>
-    dplyr::mutate(
-      join_name = stringr::str_c(location_id, location_id, sep = "_"),
-      det_rkm = 0,
-      point_type = ifelse(is.na(det_lat), "interpolated", "observed"),
-      calculated_rkm = 0
-    ) |>
-    dplyr::select(detection_hour, join_name,
-      det_lat = latitude, det_long = longitude,
-      det_rkm, point_type, calculated_rkm
-    )
-
-   hourly_bind_test <- transition_test |>
-    dplyr::select(-c(longitude, latitude)) |>
-    dplyr::bind_rows(static_test) #|>
-    dplyr::mutate(fish_id = .env$fish_id)
 
 ```
 
@@ -241,5 +131,4 @@ fish_animate_ind_example <- map2(
     filename = paste0("fish_",.y)
   )
 )
-
 ```
