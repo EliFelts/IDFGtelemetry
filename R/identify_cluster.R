@@ -5,7 +5,8 @@
 #' clusters are dropped if credible patterns of detections occur subsequently at different locations; "credible"
 #' detections are those where individuals are present in at least three ten-minute bins at a different location
 #' within a rolling 1-hour window. This criteria is intended to distinguish true subsequent presence from isolated
-#' detection that may occur from long-range hits or noise.
+#' detection that may occur from long-range hits or noise. Flagged clusters should not be right-censored without
+#' further inspection.
 #'
 #'
 #' @param detection.df Data frame; must have columns: flag_false (logical), detection_datetime (POSIXct), fishi_id (character), location_id (character)
