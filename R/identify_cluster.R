@@ -22,6 +22,9 @@
 #' @export
 #'
 #' @examples
+#' data("detections_example", package = "IDFGtelemetry")
+#' out <- identify_cluster(detection.df = detections_example)
+#' head(out)
 identify_cluster <- function(detection.df,
                              bin_duration = 10,
                              cluster_threshold = 24) {
