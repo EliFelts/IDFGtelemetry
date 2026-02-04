@@ -36,7 +36,23 @@ interpolate_hourly <- function(detections, fish_id, paths = network_points, loca
     dplyr::arrange(.data$detection_datetime) |>
     dplyr::mutate(detection_hour = lubridate::round_date(.data$detection_datetime, unit = "hour"))
 
-  locs <- unique(dat1$location_id[!is.na(dat1$location_id)])
+  hourly_check <- dat1 |>
+    dplyr::group_by(detection_hour) |>
+    dplyr::summarize(
+      det_lat = dplyr::first(.data$latitude),
+      det_long = dplyr::first(.data$longitude),
+      location_id = dplyr::first(.data$location_id),
+      .groups = "drop"
+    ) |>
+    dplyr::mutate(
+      prev_location = dplyr::lag(.data$location_id),
+      next_location = dplyr::lead(.data$location_id),
+      next_detection_hr = dplyr::lead(.data$detection_hour)
+    )
+
+  locs <- hourly_check$location_id |>
+    unique() |>
+    na.omit()
 
   if (length(locs) <= 1) {
     loc <- locs[[1]]
