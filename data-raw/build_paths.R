@@ -10,6 +10,7 @@ library(rnaturalearth)
 library(units)
 library(lwgeom)
 library(usethis)
+library(nngeo)
 
 conflicts_prefer(
   dplyr::filter,
@@ -120,6 +121,10 @@ water_surface_main <- water_surface_main |>
   st_buffer(clean_m) |>
   st_buffer(-clean_m) |>
   st_make_valid()
+
+
+leaflet_base |>
+  addPolygons(data = st_transform(water_surface_main, crs = 4326))
 
 # convert receiver points to target CRS,
 # and work through process of making sure
@@ -413,15 +418,30 @@ for (i in seq_len(n)) {
 # that's attached to the package be a
 # simple table and not an sf object
 
-network_points <- st_read("data-raw/all_paths.gpkg",
+network_points1 <- st_read("data-raw/all_paths.gpkg",
   layer = "paths_pts"
-) |>
+)
+
+
+
+# join points to regions; use buffered polygon
+# and fill in holes in clark fork delta for
+# spatial joining purposes
+
+lpo_regions <- st_read("data-raw/lporegions.gpkg") |>
+  st_make_valid() |>
+  st_remove_holes()
+
+network_points <- network_points1 |>
+  st_join(lpo_regions, join = st_intersects) |>
   mutate(
     rkm = dist_m / 1000,
     longitude = st_coordinates(geom)[, 1],
     latitude = st_coordinates(geom)[, 2]
   ) |>
-  st_drop_geometry()
+  st_drop_geometry() |>
+  mutate(region = if_else(is.na(region), "cfdelta", region))
+
 
 # make the network_points table a data
 # object for the package
